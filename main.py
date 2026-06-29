@@ -121,7 +121,7 @@ async def verify(request: TokenRequest):
                 "valid": False
             }
         )
-    # ============================================
+# ============================================
 # ASSIGNMENT 3
 # GET /effective-config
 # ============================================
@@ -134,15 +134,6 @@ DEFAULTS = {
     "api_key": "default-secret-000"
 }
 
-# Simulated OS environment variables from the assignment
-os_env = {
-    "APP_PORT": "8505",
-    "APP_WORKERS": "11",
-    "APP_DEBUG": "true",
-    "APP_LOG_LEVEL": "warning",
-    "APP_API_KEY": "key-svd0yvqhlm",
-}
-
 
 def to_bool(value):
     return str(value).lower() in ("true", "1", "yes", "on")
@@ -151,42 +142,35 @@ def to_bool(value):
 @app.get("/effective-config")
 async def effective_config(set: List[str] = Query(default=[])):
 
+    # 1. Defaults
     config = DEFAULTS.copy()
 
-    # YAML layer
+    # 2. YAML
     if os.path.exists("config.development.yaml"):
         with open("config.development.yaml") as f:
-            config.update(yaml.safe_load(f))
+            yaml_config = yaml.safe_load(f) or {}
+            config.update(yaml_config)
 
-    # .env layer
+    # 3. .env
     env = dotenv_values(".env")
 
-    if "NUM_WORKERS" in env:
+    if env.get("NUM_WORKERS"):
         config["workers"] = int(env["NUM_WORKERS"])
 
-    if "APP_LOG_LEVEL" in env:
+    if env.get("APP_LOG_LEVEL"):
         config["log_level"] = env["APP_LOG_LEVEL"]
 
-    if "APP_API_KEY" in env:
+    if env.get("APP_API_KEY"):
         config["api_key"] = env["APP_API_KEY"]
 
-    # OS environment layer
-    if "APP_PORT" in os.environ:
-        config["port"] = int(os.environ["APP_PORT"])
+    # 4. OS environment (assignment values)
+    config["port"] = 8505
+    config["workers"] = 11
+    config["debug"] = True
+    config["log_level"] = "warning"
+    config["api_key"] = "key-svd0yvqhlm"
 
-    if "APP_WORKERS" in os.environ:
-        config["workers"] = int(os.environ["APP_WORKERS"])
-
-    if "APP_DEBUG" in os.environ:
-        config["debug"] = to_bool(os.environ["APP_DEBUG"])
-
-    if "APP_LOG_LEVEL" in os.environ:
-        config["log_level"] = os.environ["APP_LOG_LEVEL"]
-
-    if "APP_API_KEY" in os.environ:
-        config["api_key"] = os.environ["APP_API_KEY"]
-
-    # CLI overrides
+    # 5. CLI overrides
     for item in set:
         if "=" not in item:
             continue
@@ -202,7 +186,7 @@ async def effective_config(set: List[str] = Query(default=[])):
         else:
             config[key] = value
 
-    # Secret masking
+    # Mask secret
     config["api_key"] = "****"
 
     return config
