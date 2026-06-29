@@ -1,13 +1,41 @@
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import jwt
+from jwt import InvalidTokenError
 import uuid
 import time
 
 app = FastAPI()
 
+# ============================================
+# CONFIGURATION
+# ============================================
+
 EMAIL = "24f2008906@ds.study.iitm.ac.in"
 
 ALLOWED_ORIGIN = "https://dash-hairwn.example.com"
+
+ISSUER = "https://idp.exam.local"
+
+AUDIENCE = "tds-duuxuxsv.apps.exam.local"
+
+PUBLIC_KEY = """
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2okOHspNjgA+2rTLbeuY
+cxiP/hG8C6Sb9iwg3yiLAA4HCnpITcbWCSelbvbYGuc3EbNy4xFyf5Cbj5DHJMID
+EkryOgyd2giIIIBOUBj8S63uGcnRpOBh9NFatfNwheKuzsPuVNldu6A9cNteNpXc
+WyJjG2axVfmq7i6SuKr1JoWYG7xTTAvKPujSl4OtsQfO3h5NepzdfXpr28oNnzfW
+ed+zclR6BcmNNo/WVfJ4xyCLSf0BCOgdTgW6PdaChd1l9VDetJZVEgC5tkyvXsfI
+SI6iyrYbKR0NEBSqq4XkadEjsCs4F1RncsS4LlgniT7GlkL9Mce3b0wGLs9/7ZIX
+dQIDAQAB
+-----END PUBLIC KEY-----
+"""
+
+# ============================================
+# CORS
+# ============================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,6 +44,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================
+# MIDDLEWARE
+# ============================================
 
 @app.middleware("http")
 async def add_headers(request: Request, call_next):
@@ -30,6 +62,18 @@ async def add_headers(request: Request, call_next):
 
     return response
 
+# ============================================
+# REQUEST MODEL
+# ============================================
+
+class TokenRequest(BaseModel):
+    token: str
+
+# ============================================
+# ASSIGNMENT 1
+# GET /stats
+# ============================================
+
 @app.get("/stats")
 async def stats(values: str = Query(...)):
     nums = [int(x) for x in values.split(",")]
@@ -42,3 +86,34 @@ async def stats(values: str = Query(...)):
         "max": max(nums),
         "mean": sum(nums) / len(nums)
     }
+
+# ============================================
+# ASSIGNMENT 2
+# POST /verify
+# ============================================
+
+@app.post("/verify")
+async def verify(request: TokenRequest):
+    try:
+        payload = jwt.decode(
+            request.token,
+            PUBLIC_KEY,
+            algorithms=["RS256"],
+            issuer=ISSUER,
+            audience=AUDIENCE
+        )
+
+        return {
+            "valid": True,
+            "email": payload.get("email"),
+            "sub": payload.get("sub"),
+            "aud": payload.get("aud")
+        }
+
+    except InvalidTokenError:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "valid": False
+            }
+        )
